@@ -5,7 +5,7 @@ import subprocess
 import threading
 import platform
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 client = docker.from_env()
 
@@ -15,7 +15,6 @@ def get_compose_cmd():
     if system == "windows":
         return ["docker", "compose"]
     else:
-        # Linux/macOS 嘗試 docker-compose，若失敗則用 docker compose
         try:
             subprocess.run(["docker-compose", "--version"], check=True, capture_output=True)
             return ["docker-compose"]
@@ -23,6 +22,20 @@ def get_compose_cmd():
             return ["docker", "compose"]
 
 COMPOSE_CMD = get_compose_cmd()
+
+# uptime 格式化
+def format_uptime(delta):
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if days > 0:
+        return f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        return f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        return f"{minutes}m {seconds}s"
+    else:
+        return f"{seconds}s"
 
 
 class DockMonApp(tk.Tk):
@@ -35,7 +48,7 @@ class DockMonApp(tk.Tk):
         try:
             self.iconphoto(True, tk.PhotoImage(file="imgs/docker_icon.png"))
         except Exception:
-            pass  # 沒有圖示也不影響
+            pass
 
         columns = ("Name", "Status", "CPU %", "Mem Usage", "Net I/O", "Uptime")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=15)
@@ -57,6 +70,9 @@ class DockMonApp(tk.Tk):
         self.refreshing = False
         self.refresh_thread = None
 
+        # 容器資料快取
+        self.container_data = []
+
         # 啟動自動更新
         self.auto_refresh()
 
@@ -68,25 +84,33 @@ class DockMonApp(tk.Tk):
         self.after(1000, self.update_table)  # 每秒刷新 UI
 
     def refresh_loop(self):
-        """背景執行緒：每 5 秒抓一次容器資料"""
+        """背景執行緒：每 30 秒抓一次容器統計資料"""
         while True:
-            self.container_data = []
-            try:
-                for c in client.containers.list(all=True):
-                    stats = self.get_stats(c) if c.status == "running" else ("-", "-", "-", "-")
-                    uptime = self.get_uptime(c) if c.status == "running" else "-"
-                    self.container_data.append((c.name, c.status, stats[0], stats[1], stats[2], uptime))
-            except Exception:
-                pass
-            time.sleep(5)
+            self.update_container_data()
+            time.sleep(30)
+
+    def update_container_data(self):
+        """更新容器資料（CPU / Mem / Net I/O / Status）"""
+        new_data = []
+        try:
+            for c in client.containers.list(all=True):
+                stats = self.get_stats(c) if c.status == "running" else ("-", "-", "-")
+                uptime = self.get_uptime(c) if c.status == "running" else "-"
+                new_data.append((c.name, c.status, stats[0], stats[1], stats[2], uptime))
+        except Exception:
+            pass
+        self.container_data = new_data
 
     def update_table(self):
-        """更新 Tkinter UI 表格"""
-        if hasattr(self, "container_data"):
+        """更新 Tkinter UI 表格（每秒跑一次，只更新 Uptime 其他數據保留）"""
+        if self.container_data:
             for row in self.tree.get_children():
                 self.tree.delete(row)
             for entry in self.container_data:
-                self.tree.insert("", tk.END, values=entry)
+                name, status, cpu, mem, net, uptime = entry
+                if status == "running":
+                    uptime = self.get_uptime(client.containers.get(name))
+                self.tree.insert("", tk.END, values=(name, status, cpu, mem, net, uptime))
         self.after(1000, self.update_table)
 
     def get_stats(self, container):
@@ -121,8 +145,8 @@ class DockMonApp(tk.Tk):
         try:
             started_at = container.attrs["State"]["StartedAt"]
             started_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-            uptime = datetime.utcnow() - started_time.replace(tzinfo=None)
-            return str(uptime).split(".")[0]  # 去掉毫秒
+            uptime = datetime.now(timezone.utc) - started_time
+            return format_uptime(uptime)
         except Exception:
             return "-"
 
@@ -136,20 +160,17 @@ class DockMonApp(tk.Tk):
     def start_container(self):
         name = self.get_selected_container()
         if name:
-            container = client.containers.get(name)
-            container.start()
+            client.containers.get(name).start()
 
     def stop_container(self):
         name = self.get_selected_container()
         if name:
-            container = client.containers.get(name)
-            container.stop()
+            client.containers.get(name).stop()
 
     def restart_container(self):
         name = self.get_selected_container()
         if name:
-            container = client.containers.get(name)
-            container.restart()
+            client.containers.get(name).restart()
 
     def rebuild_container(self):
         name = self.get_selected_container()
@@ -170,6 +191,7 @@ class DockMonApp(tk.Tk):
             text = tk.Text(log_win, wrap="word")
             text.insert("1.0", logs)
             text.pack(fill=tk.BOTH, expand=True)
+
 
 if __name__ == "__main__":
     app = DockMonApp()
