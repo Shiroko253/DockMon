@@ -1,18 +1,42 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox
 import docker
 import subprocess
-import datetime
+import threading
+import platform
+import time
+from datetime import datetime
 
 client = docker.from_env()
+
+# 判斷系統使用 docker compose 的命令
+def get_compose_cmd():
+    system = platform.system().lower()
+    if system == "windows":
+        return ["docker", "compose"]
+    else:
+        # Linux/macOS 嘗試 docker-compose，若失敗則用 docker compose
+        try:
+            subprocess.run(["docker-compose", "--version"], check=True, capture_output=True)
+            return ["docker-compose"]
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return ["docker", "compose"]
+
+COMPOSE_CMD = get_compose_cmd()
+
 
 class DockMonApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("DockMon")
+        self.title("DockMon - Docker Monitor")
         self.geometry("1100x500")
 
-        # 定義表格欄位
+        # 加載圖示
+        try:
+            self.iconphoto(True, tk.PhotoImage(file="imgs/docker_icon.png"))
+        except Exception:
+            pass  # 沒有圖示也不影響
+
         columns = ("Name", "Status", "CPU %", "Mem Usage", "Net I/O", "Uptime")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=15)
         for col in columns:
@@ -20,65 +44,67 @@ class DockMonApp(tk.Tk):
             self.tree.column(col, width=160, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # 操作按鈕
         btn_frame = tk.Frame(self)
         btn_frame.pack(fill=tk.X, pady=5)
 
-        tk.Button(btn_frame, text="Refresh", command=self.refresh).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Start", command=self.start_container).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Stop", command=self.stop_container).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Restart", command=self.restart_container).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Rebuild & Relaunch", command=self.rebuild_container).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Logs", command=self.show_logs).pack(side=tk.LEFT, padx=5)
 
-        # 初始化刷新 & 啟動自動更新
-        self.refresh()
+        # 背景刷新用
+        self.refreshing = False
+        self.refresh_thread = None
+
+        # 啟動自動更新
         self.auto_refresh()
 
     def auto_refresh(self):
-        """每隔 5 秒自動刷新"""
-        self.refresh()
-        self.after(5000, self.auto_refresh)
+        if not self.refreshing:
+            self.refreshing = True
+            self.refresh_thread = threading.Thread(target=self.refresh_loop, daemon=True)
+            self.refresh_thread.start()
+        self.after(1000, self.update_table)  # 每秒刷新 UI
 
-    def get_selected_container(self):
-        """取得目前選中的容器名稱"""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("No selection", "請先選擇一個容器")
-            return None
-        return self.tree.item(selected[0])["values"][0]
+    def refresh_loop(self):
+        """背景執行緒：每 5 秒抓一次容器資料"""
+        while True:
+            self.container_data = []
+            try:
+                for c in client.containers.list(all=True):
+                    stats = self.get_stats(c) if c.status == "running" else ("-", "-", "-", "-")
+                    uptime = self.get_uptime(c) if c.status == "running" else "-"
+                    self.container_data.append((c.name, c.status, stats[0], stats[1], stats[2], uptime))
+            except Exception:
+                pass
+            time.sleep(5)
 
-    def refresh(self):
-        """刷新表格內容"""
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-
-        for c in client.containers.list(all=True):
-            stats = self.get_stats(c) if c.status == "running" else ("-", "-", "-")
-            uptime = self.get_uptime(c) if c.status == "running" else "-"
-            self.tree.insert("", tk.END, values=(
-                c.name,
-                c.status,
-                stats[0],
-                stats[1],
-                stats[2],
-                uptime
-            ))
+    def update_table(self):
+        """更新 Tkinter UI 表格"""
+        if hasattr(self, "container_data"):
+            for row in self.tree.get_children():
+                self.tree.delete(row)
+            for entry in self.container_data:
+                self.tree.insert("", tk.END, values=entry)
+        self.after(1000, self.update_table)
 
     def get_stats(self, container):
-        """獲取 CPU / Memory / Net I/O 資訊"""
         try:
             s = container.stats(stream=False)
+
             # CPU %
             cpu_delta = s["cpu_stats"]["cpu_usage"]["total_usage"] - s["precpu_stats"]["cpu_usage"]["total_usage"]
             system_delta = s["cpu_stats"]["system_cpu_usage"] - s["precpu_stats"]["system_cpu_usage"]
             cpu_percent = 0.0
             if system_delta > 0.0 and cpu_delta > 0.0:
                 cpu_percent = (cpu_delta / system_delta) * len(s["cpu_stats"]["cpu_usage"].get("percpu_usage", [])) * 100.0
+
             # Memory
             mem_usage = s["memory_stats"]["usage"] / (1024 * 1024)
             mem_limit = s["memory_stats"]["limit"] / (1024 * 1024)
             mem_str = f"{mem_usage:.0f}MB / {mem_limit:.0f}MB"
+
             # Net I/O
             net_rx = net_tx = 0
             if "networks" in s:
@@ -86,83 +112,64 @@ class DockMonApp(tk.Tk):
                     net_rx += iface.get("rx_bytes", 0)
                     net_tx += iface.get("tx_bytes", 0)
             net_str = f"{net_rx//1024}kB / {net_tx//1024}kB"
+
             return (f"{cpu_percent:.1f}%", mem_str, net_str)
         except Exception:
             return ("-", "-", "-")
 
     def get_uptime(self, container):
-        """獲取容器運行時間"""
         try:
             started_at = container.attrs["State"]["StartedAt"]
-            start_time = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
-            delta = datetime.datetime.now(datetime.timezone.utc) - start_time
-            return str(delta).split(".")[0]  # 去掉毫秒
+            started_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+            uptime = datetime.utcnow() - started_time.replace(tzinfo=None)
+            return str(uptime).split(".")[0]  # 去掉毫秒
         except Exception:
             return "-"
+
+    def get_selected_container(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Warning", "請選擇一個容器")
+            return None
+        return self.tree.item(selected[0], "values")[0]
 
     def start_container(self):
         name = self.get_selected_container()
         if name:
-            try:
-                c = client.containers.get(name)
-                c.start()
-                messagebox.showinfo("Started", f"容器 {name} 已啟動")
-                self.refresh()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+            container = client.containers.get(name)
+            container.start()
 
     def stop_container(self):
         name = self.get_selected_container()
         if name:
-            try:
-                c = client.containers.get(name)
-                c.stop()
-                messagebox.showinfo("Stopped", f"容器 {name} 已停止")
-                self.refresh()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+            container = client.containers.get(name)
+            container.stop()
 
     def restart_container(self):
         name = self.get_selected_container()
         if name:
-            try:
-                c = client.containers.get(name)
-                c.restart()
-                messagebox.showinfo("Restarted", f"容器 {name} 已重啟")
-                self.refresh()
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+            container = client.containers.get(name)
+            container.restart()
 
     def rebuild_container(self):
         name = self.get_selected_container()
         if name:
             try:
-                subprocess.run(["docker-compose", "build", name], check=True)
-                subprocess.run(["docker-compose", "up", "-d", name], check=True)
-                messagebox.showinfo("Rebuilt", f"容器 {name} 已重新 build 並啟動")
-                self.refresh()
+                subprocess.run(COMPOSE_CMD + ["build", name], check=True)
+                subprocess.run(COMPOSE_CMD + ["up", "-d", name], check=True)
             except Exception as e:
-                messagebox.showerror("Error", str(e))
+                messagebox.showerror("Error", f"Rebuild failed: {e}")
 
     def show_logs(self):
         name = self.get_selected_container()
         if name:
-            try:
-                c = client.containers.get(name)
-                logs = c.logs(tail=100).decode("utf-8")
-
-                log_window = tk.Toplevel(self)
-                log_window.title(f"Logs - {name}")
-                log_window.geometry("800x400")
-
-                text_area = scrolledtext.ScrolledText(log_window, wrap=tk.WORD)
-                text_area.pack(expand=True, fill="both")
-                text_area.insert(tk.END, logs)
-                text_area.config(state="disabled")
-
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
-
+            container = client.containers.get(name)
+            logs = container.logs(tail=50).decode()
+            log_win = tk.Toplevel(self)
+            log_win.title(f"Logs - {name}")
+            text = tk.Text(log_win, wrap="word")
+            text.insert("1.0", logs)
+            text.pack(fill=tk.BOTH, expand=True)
 
 if __name__ == "__main__":
     app = DockMonApp()
