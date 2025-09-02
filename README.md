@@ -45,10 +45,6 @@ DockMon is a simple, cross-platform desktop application for monitoring and manag
    python main.py
    ```
 
-## Screenshot
-
-![DockMon Screenshot](imgs/screenshot.png)
-
 ## License
 
 This project is licensed under the MIT License.
