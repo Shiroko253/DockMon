@@ -1,0 +1,13 @@
+{
+    "title": "DockMon - Docker Monitor",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "rebuild": "Rebuild & Relaunch",
+    "logs": "Logs",
+    "warning": "Warning",
+    "select_container": "Please select a container",
+    "error": "Error",
+    "rebuild_failed": "Rebuild failed",
+    "chart_permission_warning": "Resource charts require admin/root privileges."
+}
