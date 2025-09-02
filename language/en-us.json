@@ -1,13 +1,21 @@
 {
     "title": "DockMon - Docker Monitor",
+    "refresh": "Refresh",
+    "clear_msg": "Clear Message",
+    "show_chart": "Show Resource Charts",
+    "chart_permission_warning": "Resource charts require admin/root privileges.",
     "start": "Start",
     "stop": "Stop",
     "restart": "Restart",
-    "rebuild": "Rebuild & Relaunch",
+    "rebuild": "Rebuild",
     "logs": "Logs",
-    "warning": "Warning",
+    "remove": "Remove",
+    "remove_confirm_title": "Confirm Remove",
+    "remove_confirm_msg": "Are you sure to REMOVE container",
+    "remove_warning": "This action cannot be undone!",
+    "remove_success": "Container removed successfully",
+    "remove_failed": "Remove failed",
     "select_container": "Please select a container",
     "error": "Error",
-    "rebuild_failed": "Rebuild failed",
-    "chart_permission_warning": "Resource charts require admin/root privileges."
+    "rebuild_failed": "Rebuild failed"
 }
