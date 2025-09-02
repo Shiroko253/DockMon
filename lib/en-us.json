@@ -1,0 +1,4 @@
+{
+  "title": "English",
+  "help": "DockMon Help\n\nFeatures:\n- Monitor local Docker containers: status, resource usage\n- Start/Stop/Restart/Rebuild/Remove containers (Remove is irreversible)\n- View container logs\n- Support light/dark theme switch\n- Support multi-language\n\nHow to use:\n1. Choose Language and Theme from the top menu.\n2. Select a container from the list below to operate.\n3. Use the right panel buttons to control Start/Stop/Restart/Rebuild/Logs/Remove.\n   - Remove will prompt for confirmation and cannot be undone.\n4. Click 'Show Resource Charts' to view resource usage charts (admin/root required).\n5. Click 'Clear Message' to clear error/info messages.\n6. Click 'Refresh' to manually refresh the container list.\n\nNotes:\n- Remove operation is irreversible!\n- Resource charts require admin/root privileges.\n- Error/info messages show at the bottom.\n\nFor more details see the repo README.md or docs."
+}
