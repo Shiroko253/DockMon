@@ -12,6 +12,7 @@ class DockMonApp(tk.Tk):
         self.title("DockMon")
         self.geometry("1100x500")
 
+        # 定義表格欄位
         columns = ("Name", "Status", "CPU %", "Mem Usage", "Net I/O", "Uptime")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", height=15)
         for col in columns:
@@ -19,6 +20,7 @@ class DockMonApp(tk.Tk):
             self.tree.column(col, width=160, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
+        # 操作按鈕
         btn_frame = tk.Frame(self)
         btn_frame.pack(fill=tk.X, pady=5)
 
@@ -29,7 +31,14 @@ class DockMonApp(tk.Tk):
         tk.Button(btn_frame, text="Rebuild & Relaunch", command=self.rebuild_container).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Logs", command=self.show_logs).pack(side=tk.LEFT, padx=5)
 
+        # 初始化刷新 & 啟動自動更新
         self.refresh()
+        self.auto_refresh()
+
+    def auto_refresh(self):
+        """每隔 5 秒自動刷新"""
+        self.refresh()
+        self.after(5000, self.auto_refresh)
 
     def get_selected_container(self):
         """取得目前選中的容器名稱"""
@@ -40,6 +49,7 @@ class DockMonApp(tk.Tk):
         return self.tree.item(selected[0])["values"][0]
 
     def refresh(self):
+        """刷新表格內容"""
         for row in self.tree.get_children():
             self.tree.delete(row)
 
@@ -56,6 +66,7 @@ class DockMonApp(tk.Tk):
             ))
 
     def get_stats(self, container):
+        """獲取 CPU / Memory / Net I/O 資訊"""
         try:
             s = container.stats(stream=False)
             # CPU %
@@ -80,6 +91,7 @@ class DockMonApp(tk.Tk):
             return ("-", "-", "-")
 
     def get_uptime(self, container):
+        """獲取容器運行時間"""
         try:
             started_at = container.attrs["State"]["StartedAt"]
             start_time = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
@@ -150,6 +162,7 @@ class DockMonApp(tk.Tk):
 
             except Exception as e:
                 messagebox.showerror("Error", str(e))
+
 
 if __name__ == "__main__":
     app = DockMonApp()
