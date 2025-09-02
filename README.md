@@ -4,49 +4,55 @@
 
 # DockMon
 
-DockMon is a simple and user-friendly desktop application for monitoring and managing Docker containers, built with Python Tkinter. Instantly view container status, resource usage, and perform operations such as start, stop, restart, rebuild, and view logs—all in one place. DockMon also supports Docker Compose detection and compatibility.
+DockMon is a simple, cross-platform desktop application for monitoring and managing Docker containers, built with Python Tkinter. It provides a real-time overview of container status, resource usage, and convenient management operations—all in one place.
+
+> For Traditional Chinese, please refer to [doc/README-ch_tw.md](doc/README-ch_tw.md).
 
 ## Features
 
 - **Live Monitoring:** Auto-refresh display of all Docker containers, including status and resource consumption.
-- **Start/Stop/Restart Containers:** Easily control containers with single-click operations.
-- **Rebuild and Relaunch:** Quickly rebuild and restart containers using Docker Compose.
+- **Start/Stop/Restart/Rebuild Containers:** Easily control containers with single-click operations.
 - **View Logs:** One-click access to the latest 50 lines of container logs.
 - **Uptime Display:** Accurate running time shown in days/hours/minutes/seconds.
-- **Cross-platform:** Supports Windows, Linux, and MacOS. Automatically selects docker compose or docker-compose command.
+- **Resource Charts:** Real-time charts for CPU, memory, and network I/O (requires admin/root privileges).
+- **Multi-language UI:** Automatically detects system language (English/Traditional Chinese).
+- **Cross-platform:** Supports Windows, Linux, and MacOS. Automatically selects `docker compose` or `docker-compose` command.
 
 ## Technical Highlights
 
 - Built with Python 3 and Tkinter GUI framework.
 - Uses `docker` Python SDK to connect to local Docker service.
 - Background threads for smooth UI and real-time updates.
+- Modular chart logic with matplotlib (see `lib/DockMod.py`).
 - Single-file main program; easy to deploy and maintain.
 
 ## Installation & Usage
 
-1. **Install dependencies** (requires Python 3, Docker, and Docker Compose):
+1. **Install dependencies**  
+   Requires Python 3, Docker, and Docker Compose:
    ```bash
-   pip install docker
+   pip install docker matplotlib
    ```
 
-2. **Clone the repository**:
+2. **Clone the repository**
    ```bash
    git clone https://github.com/Shiroko253/DockMon.git
    cd DockMon
    ```
 
-3. **Run DockMon**:
+3. **Run DockMon**
    ```bash
    python main.py
    ```
 
+## Screenshot
+
+![DockMon Screenshot](imgs/screenshot.png)
 
 ## License
 
 This project is licensed under the MIT License.
 
 ---
-
-For Traditional Chinese, please refer to [README-ch_tw.md](doc/README-ch_tw.md).
 
 Feel free to submit issues or pull requests to help improve DockMon!
