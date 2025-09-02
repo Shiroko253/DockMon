@@ -40,10 +40,6 @@ DockMon 是一款簡潔易用的 Docker 容器監控與管理桌面應用程式�
    python main.py
    ```
 
-## 截圖
-
-![DockMon Screenshot](../imgs/screenshot.png)
-
 ## 授權
 
 本專案採用 MIT License 授權。
